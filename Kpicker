@@ -1,0 +1,43 @@
+#!/bin/bash
+#RW - 06.03.2023 - initial version.
+#Script written for Fedora.
+#It will look at the installed kernels, let you choose one of them, and then it will set that kernel as the default.
+#I run ZFS on Fedora, and run into situations where I need to go back to a previous kernel to make use of the ZFS module
+
+# List installed kernels
+echo "Installed kernels:"
+mapfile -t kernels < <(rpm -q kernel)
+for i in "${!kernels[@]}"; do
+  echo "$((i+1))" "${kernels[i]}"
+done
+
+# Ensure the script is being run as root
+if [ "$(id -u)" != "0" ]; then
+   echo ""
+   echo "To make changes, This script must be run as root" 1>&2
+   exit 1
+fi
+
+# Let user select a kernel
+echo "Enter the number of the kernel you want to make the default:"
+read selected
+selected_kernel=${kernels[$((selected-1))]}
+if [[ -z "$selected_kernel" ]]; then
+    echo "Invalid selection"
+    exit 1
+fi
+
+# Get the version of the selected kernel
+selected_kernel_version=$(echo $selected_kernel | sed 's/kernel-//')
+
+# Check if the selected kernel is in the bootloader
+grubby_output=$(grubby --info=/boot/vmlinuz-${selected_kernel_version})
+if [[ "$grubby_output" == *"error"* ]]; then
+    echo "The selected kernel is not present in the bootloader"
+    exit 1
+fi
+
+# Set the selected kernel as the default
+grubby --set-default=/boot/vmlinuz-${selected_kernel_version}
+
+echo "The default kernel is now $selected_kernel_version"
